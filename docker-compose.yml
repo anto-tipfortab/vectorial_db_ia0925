@@ -1,0 +1,99 @@
+services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.1
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+      - ./qdrant_config.yaml:/qdrant/config/production.yaml
+    restart: unless-stopped
+
+  data_fetcher:
+    build: ./data_fetcher
+    container_name: data_fetcher
+    env_file: ./data_fetcher/.env
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - shared_pdfs:/shared
+    restart: unless-stopped
+
+  processor_consumer:
+    build: ./processor
+    container_name: processor_consumer
+    command: python consumer.py
+    env_file: ./processor/.env
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    volumes:
+      - shared_pdfs:/shared
+    restart: unless-stopped
+
+  processor_worker:
+    build: ./processor
+    container_name: processor_worker
+    command: celery -A celery_app worker --concurrency 1 --loglevel info
+    env_file: ./processor/.env
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    volumes:
+      - shared_pdfs:/shared
+    restart: unless-stopped
+
+  query_service:
+    build: ./query_service
+    container_name: query_service
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    env_file: ./query_service/.env
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+  qdrant_storage:
+  shared_pdfs:

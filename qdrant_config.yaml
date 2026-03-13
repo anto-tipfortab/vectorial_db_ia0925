@@ -1,0 +1,22 @@
+log_level: INFO
+
+storage:
+  # Where Qdrant stores its data inside the container
+  # (mapped to the Docker volume qdrant_storage)
+  storage_path: /qdrant/storage
+
+  # HNSW index parameters — see report section 2 for justification
+  hnsw_index:
+    m: 16             # connections per node (default 16 — good recall/memory balance)
+    ef_construct: 100 # search width during indexing (higher = better recall, slower build)
+
+service:
+  host: 0.0.0.0
+  http_port: 6333
+  grpc_port: 6334
+
+  # Disable telemetry — no data sent to Qdrant servers
+  telemetry_disabled: true
+
+cluster:
+  enabled: false   # single-node setup; no clustering needed for this project
