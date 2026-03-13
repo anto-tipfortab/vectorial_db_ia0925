@@ -171,3 +171,6 @@ docker compose down
 # Parar y borrar todos los volúmenes (resetea Qdrant y RabbitMQ)
 docker compose down -v
 ```
+![UI](image.png)
+![Qdrant](image-1.png)
+![Queue](image-2.png)
